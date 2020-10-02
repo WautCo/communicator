@@ -17,7 +17,7 @@ class Conversation( wx.Frame ):
 
     wx.Frame.__init__( self, parent, id, title, position, size, style )
 
-  self.app = parent.get_app()
+    self.app = parent.get_app()
 
     self.configure_menus()
     self.configure_components()
