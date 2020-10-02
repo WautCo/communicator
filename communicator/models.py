@@ -1,11 +1,13 @@
+import os
 import pickle
 import yaml
 
-import os.path
-
-from googleapiclient.discovery import build
+from googleapiclient import discovery
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
+from google.oauth2 import service_account
+
+from communicator.clients import SlackClient
 
 class Service:
   name   = None
@@ -28,6 +30,7 @@ class Account:
   credentials   = None
   username      = None
   password      = None
+  client = None
 
   def __init__( self, data ):
     self.name     = data['name']
@@ -39,7 +42,7 @@ class Account:
     if 'password' in data:
       self.password = data['password']
 
-    self.load_config()
+    # self.load_config()
 
   def load_config( self ):
     config = None
@@ -63,8 +66,11 @@ class Account:
   def get_password( self ):
     return self.password
 
-  def get_credentials( self ):
-    return self.credentials
+  def get_user_credentials( self ):
+    return self.user_creds
+
+  def get_service_credentials( self ):
+    return self.service_creds
 
   def set_credentials( self, creds ):
     self.credentials = creds
@@ -74,32 +80,33 @@ class Account:
   def get_config( self ):
     return self.config
 
+  def get_client( self ):
+    return self.client
+
+  def set_client( self, client ):
+    self.client = client
+
+    return
+
   def login( self ):
     pass
 
 
 class GoogleAccount( Account ):
-  SCOPES      = {
-    'people': [
-      'https://www.googleapis.com/auth/contacts.readonly',
-    ],
-    'chat':   [
-      'https://www.googleapis.com/auth/chat',
-      # 'https://www.googleapis.com/auth/chat.bot'
-    ],
-  }
-
-  credentials = None
+  user_creds    = None
+  service_creds = None
 
   def __init__( self, data ):
     data['service'] = 'Google'
 
     Account.__init__( self, data )
 
-  def authorize( self ):
+  def authorize_as_user( self ):
+    scopes     = [ 'https://www.googleapis.com/auth/contacts.readonly' ]
+
     creds      = None
-    token_file = 'token.pickle'
-    creds_file = 'credentials.json'
+    token_file = os.path.realpath( 'conf/token.pickle' )
+    creds_file = os.path.realpath( 'conf/credentials.json' )
 
     if os.path.exists( token_file ):
         with open( token_file, 'rb' ) as token:
@@ -110,7 +117,6 @@ class GoogleAccount( Account ):
         if creds and creds.expired and creds.refresh_token:
             creds.refresh( Request() )
         else:
-            scopes = self.SCOPES['chat']
             flow   = InstalledAppFlow.from_client_secrets_file( creds_file, scopes )
             creds  = flow.run_local_server( port=0 )
 
@@ -120,10 +126,24 @@ class GoogleAccount( Account ):
 
     return creds
 
-  def login( self ):
-    creds = self.authorize()
+  def authorize_as_service( self ):
+    scopes       = [ 'https://www.googleapis.com/auth/chat.bot' ]
+    key_file     = os.path.realpath( 'conf/key.json' )
+    creds        = service_account.Credentials.from_service_account_file( key_file, scopes=scopes )
 
-    self.credentials = creds
+    return creds
+
+  def login( self, type='user' ):
+    creds   = None
+
+    if type == 'user':
+      creds = self.authorize_as_user()
+
+      self.user_creds = creds
+    elif type == 'service':
+      creds = self.authorize_as_service()
+
+      self.service_creds = creds
 
     return
 
@@ -139,8 +159,13 @@ class WhatsAppAccount( Account ):
 
 
 class SlackAccount( Account ):
-  def login( self ):
-    pass
+  def __init__( self, data ):
+    Account.__init__( self, data )
+
+    creds = data.get( 'credentials', {} )
+    token = creds.get( 'api_key', '' )
+
+    self.set_client( SlackClient( token ) )
 
 
 class SkypeAccount( Account ):
@@ -178,6 +203,31 @@ class Buddy:
 
   def __str__( self ):
     return self.name
+
+
+class SlackBuddy( Buddy ):
+  id                  = None
+  name                = None
+  real_name           = None
+  team_id             = None
+  profile             = {}
+  tz                  = None
+  tz_label            = None
+  tz_offset           = None
+  updated             = None
+  color               = None
+  is_admin            = False
+  is_owner            = False
+  is_primary_owner    = False
+  is_restricted       = False
+  is_ultra_restricted = False
+  is_bot              = False
+  is_app_user         = False
+  has_2fa             = False
+  deleted             = False
+
+  def __init__( self, data ):
+    Buddy.__init__( self, data )
 
 
 class Group:
@@ -228,11 +278,12 @@ class GoogleClient( Client ):
   def __init__( self, account ):
     Client.__init__( self, account )
 
-    creds    = account.get_credentials()
-    services = {}
-
-    services['people'] = build( 'people', 'v1', credentials=creds )
-    services['chat'] = build( 'chat', 'v1', credentials=creds )
+    user_creds    = account.get_user_credentials()
+    service_creds = account.get_user_credentials()
+    services      = {
+      'people': discovery.build( 'people', 'v1', credentials=user_creds ),
+      'chat':   discovery.build( 'chat', 'v1', credentials=service_creds ),
+    }
 
     self.services = services
 
@@ -248,6 +299,9 @@ class GoogleClient( Client ):
     return connections
 
   def get_spaces( self ):
-    spaces = self.services['chat'].spaces().list().execute()
+    service  = self.services['chat']
+    resource = service.spaces()
+    request  = resource.list()
+    spaces   = request.execute()
 
     return spaces

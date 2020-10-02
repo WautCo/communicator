@@ -4,7 +4,9 @@ from communicator.models import Service, Account, Buddy, Group
 
 class Conversation( wx.Frame ):
   MSG_BOX_ID = 1001
-  SEND_ID = 1002
+  SEND_ID    = 1002
+  app        = None
+  convo_view = None
   recipients = []
 
   def __init__( self, parent, title ):
@@ -14,6 +16,8 @@ class Conversation( wx.Frame ):
     style = wx.DEFAULT_FRAME_STYLE | wx.MAXIMIZE
 
     wx.Frame.__init__( self, parent, id, title, position, size, style )
+
+  self.app = parent.get_app()
 
     self.configure_menus()
     self.configure_components()
@@ -58,6 +62,8 @@ class Conversation( wx.Frame ):
     msg_box = wx.TextCtrl( msg_panel, self.MSG_BOX_ID, "", wx.DefaultPosition, wx.DefaultSize, wx.TE_PROCESS_ENTER|wx.TE_MULTILINE|wx.TE_WORDWRAP  )
     send_button = wx.Button( msg_panel, self.SEND_ID, "Send" )
 
+    self.convo_view = convo_view
+
     main_panel.SetSizer( main_sizer )
     msg_panel.SetSizer( msg_sizer )
     hist_panel.SetSizer( hist_sizer )
@@ -76,10 +82,19 @@ class Conversation( wx.Frame ):
     msg_box.Bind( wx.EVT_TEXT_ENTER, self.on_enter, msg_box )
     send_button.Bind( wx.EVT_BUTTON, self.on_enter, send_button )
 
+    self.load_conversation_history()
+
     return
 
   def add_recipient( self, buddy ):
     self.recipients.append( buddy )
+    return
+
+  def load_conversation_history( self ):
+    convo_view = self.convo_view
+    buddy      = self.recipients[0]
+    client     = buddy.get_account().get_client()
+
     return
 
   def on_enter( self, event ):
@@ -109,19 +124,21 @@ class Conversation( wx.Frame ):
 class BuddyList( wx.Frame ):
   TREE_ID   = 1000
   tree_ctrl = None
-  config    = None
+  app       = None
   groups    = {}
   buddies   = {}
-  accounts = {}
+  accounts  = {}
+  logger    = None
 
-  def __init__( self, config=None ):
+  def __init__( self, app ):
     id       = -1
     title    = "Communicator - Buddy List"
     position = wx.DefaultPosition
     size     = wx.Size( 450, 450 )
     style = wx.DEFAULT_FRAME_STYLE|wx.MAXIMIZE
 
-    self.config = config
+    self.app = app
+    self.logger = app.get_logger()
 
     wx.Frame.__init__( self, None, id, title, position, size, style )
 
@@ -185,31 +202,43 @@ class BuddyList( wx.Frame ):
     return convo
 
   def populate_tree( self ):
-    accounts = self.config['accounts']
-    groups  = self.config['groups']
-    buddies = self.config['buddies']
-    tree    = self.tree_ctrl
-    nodes   = {}
+    accounts     = self.app.get_accounts()
+    config       = self.app.get_config()
+    groups       = config['groups']
+    buddies      = config['buddies']
+    tree         = self.tree_ctrl
+    nodes        = {}
 
     tree.SetWindowStyle( wx.TR_SINGLE | wx.TR_LINES_AT_ROOT | wx.TR_EDIT_LABELS | wx.TR_HIDE_ROOT )
 
-    root      = tree.AddRoot( "Groups" )
+    root         = tree.AddRoot( "Groups" )
 
-    for item in accounts:
-      account = Account( item )
-      name    = account.get_name()
+    account      = accounts['Slack']
+    service    = account.get_service()
+    client     = account.get_client()
 
-      self.accounts[name] = account
+    if service == 'Slack':
+      team     = client.get_team_name()
+      group    = Group( { 'name': team } )
+      members  = client.get_team_members()
+
+      group_id = tree.AppendItem( root, team, -1, -1, group )
+
+      for member in members:
+        name = member['name']
+
+        tree.AppendItem( group_id, name, -1, -1, member )
 
     for item in groups:
       group = Group( item )
       name   = group.get_name()
 
-      nodes[name] = tree.AppendItem( root, name, -1, -1, group )
+      nodes['name'] = tree.AppendItem( root, name, -1, -1, group )
 
-      self.groups[name] = group
+      self.groups['name'] = group
 
     for item in buddies:
+      """
       buddy = Buddy( item )
       name  = buddy.get_name()
       group = buddy.get_group()
@@ -217,7 +246,8 @@ class BuddyList( wx.Frame ):
 
       tree.AppendItem( node, buddy.get_name(), -1, -1, buddy )
 
-      self.buddies[name] = buddy
+      self.buddies['name'] = buddy
+      """
 
     child = tree.GetFirstChild( root )
 
@@ -228,6 +258,9 @@ class BuddyList( wx.Frame ):
     tree.Bind( wx.EVT_TREE_SEL_CHANGED, self.on_tree_selection,         id=self.TREE_ID )
 
     return
+
+  def get_app( self ):
+    return self.app
 
   def on_new_convo( self, event ):
     item   = self.tree_ctrl.GetSelection()
@@ -255,7 +288,6 @@ class BuddyList( wx.Frame ):
     obj_class  = object.__class__
 
     if obj_class is Group:
-      wx.MessageBox( f'{obj_class}' )
       return
 
     convo = self.create_conversation( object )
@@ -266,13 +298,23 @@ class BuddyList( wx.Frame ):
 
   def on_tree_context_menu( self, event ):
     item   = event.getItem()
-    object = self.tree_ctrl.GetItemData( item )
+    tree   = self.tree_ctrl
+    
+    if not item.IsOk():
+      return
+
+    object = tree.GetItemData( item )
 
     return
 
   def on_tree_selection( self, event ):
     item   = event.GetItem()
-    object = self.tree_ctrl.GetItemData( item )
+    tree   = self.tree_ctrl
+
+    if not item.IsOk():
+      return
+
+    object = tree.GetItemData( item )
 
     return
 
