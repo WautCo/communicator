@@ -109,19 +109,21 @@ class Conversation( wx.Frame ):
 class BuddyList( wx.Frame ):
   TREE_ID   = 1000
   tree_ctrl = None
-  config    = None
+  app       = None
   groups    = {}
   buddies   = {}
-  accounts = {}
+  accounts  = {}
+  logger    = None
 
-  def __init__( self, config=None ):
+  def __init__( self, app ):
     id       = -1
     title    = "Communicator - Buddy List"
     position = wx.DefaultPosition
     size     = wx.Size( 450, 450 )
     style = wx.DEFAULT_FRAME_STYLE|wx.MAXIMIZE
 
-    self.config = config
+    self.app = app
+    self.logger = app.get_logger()
 
     wx.Frame.__init__( self, None, id, title, position, size, style )
 
@@ -185,31 +187,43 @@ class BuddyList( wx.Frame ):
     return convo
 
   def populate_tree( self ):
-    accounts = self.config['accounts']
-    groups  = self.config['groups']
-    buddies = self.config['buddies']
-    tree    = self.tree_ctrl
-    nodes   = {}
+    accounts     = self.app.get_accounts()
+    config       = self.app.get_config()
+    groups       = config['groups']
+    buddies      = config['buddies']
+    tree         = self.tree_ctrl
+    nodes        = {}
 
     tree.SetWindowStyle( wx.TR_SINGLE | wx.TR_LINES_AT_ROOT | wx.TR_EDIT_LABELS | wx.TR_HIDE_ROOT )
 
-    root      = tree.AddRoot( "Groups" )
+    root         = tree.AddRoot( "Groups" )
 
-    for item in accounts:
-      account = Account( item )
-      name    = account.get_name()
+    account      = accounts['Slack']
+    service    = account.get_service()
+    client     = account.get_client()
 
-      self.accounts[name] = account
+    if service == 'Slack':
+      team     = client.get_team_name()
+      group    = Group( { 'name': team } )
+      members  = client.get_team_members()
+
+      group_id = tree.AppendItem( root, team, -1, -1, group )
+
+      for member in members:
+        name = member['name']
+
+        tree.AppendItem( group_id, name, -1, -1, member )
 
     for item in groups:
       group = Group( item )
       name   = group.get_name()
 
-      nodes[name] = tree.AppendItem( root, name, -1, -1, group )
+      nodes['name'] = tree.AppendItem( root, name, -1, -1, group )
 
-      self.groups[name] = group
+      self.groups['name'] = group
 
     for item in buddies:
+      """
       buddy = Buddy( item )
       name  = buddy.get_name()
       group = buddy.get_group()
@@ -217,7 +231,8 @@ class BuddyList( wx.Frame ):
 
       tree.AppendItem( node, buddy.get_name(), -1, -1, buddy )
 
-      self.buddies[name] = buddy
+      self.buddies['name'] = buddy
+      """
 
     child = tree.GetFirstChild( root )
 
@@ -272,6 +287,10 @@ class BuddyList( wx.Frame ):
 
   def on_tree_selection( self, event ):
     item   = event.GetItem()
+
+    if self.tree_ctrl is None:
+      return
+
     object = self.tree_ctrl.GetItemData( item )
 
     return

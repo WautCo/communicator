@@ -1,48 +1,75 @@
-import yaml
+import logging
 import wx
+import yaml
 
 from communicator.components import BuddyList
-from communicator.models     import Account
+from communicator.models     import GoogleAccount, SlackAccount
 
 class App( wx.App ):
-  buddy_list = None
-  services   = {}
-  accounts   = {}
-  config     = None
+  config   = None
+  accounts = {}
 
   def OnInit( self ):
-    filename = 'Communicator.yml'
+    filename = r'd:\Public\dev\dist\wautco\communicator\Communicator.yml'
+    config   = None
+    loger    = None
 
     with open( filename ) as file:
-      self.config   = yaml.load( file, Loader=yaml.FullLoader )
+      config = yaml.load( file, Loader=yaml.FullLoader )
 
-    buddy_list = BuddyList( self.config )
+    accounts = config.get( 'accounts', None )
+
+    if accounts is None:
+      wx.MessageBox( 'Please add accounts to the config' )
+
+      return
+
+    self.config = config
+
+    self.configure_logging()
+
+    for item in accounts:
+      service = item.get( 'service', None )
+
+      if service == 'Google':
+        account = GoogleAccount( item )
+      elif service == 'Facebook':
+        account = FacebookAccount( item )
+      elif service == 'Slack':
+        account = SlackAccount( item )
+      elif service == 'WhatsApp':
+        account = WhatsAppAccount( item )
+      elif service == 'Skype':
+        account = SkypeAccount( item )
+      elif service == 'Twitter':
+        account = TwitterAccount( item )
+
+      account.login()
+
+      self.accounts[account.get_name()] = account
+
+    buddy_list = BuddyList( self )
 
     buddy_list.Show( True )
 
     self.SetTopWindow( buddy_list )
 
-    for item in self.config.accounts:
-      if item['service'] == 'Google':
-        account = GoogleAccount( item )
-      elif item['service'] == 'Facebook':
-        account = FacebookAccount( item )
-      elif item['service'] == 'Slack':
-        account = SlackAccount( item )
-      elif item['service'] == 'WhatsApp':
-        account = WhatsAppAccount( item )
-      elif item['service'] == 'Skype':
-        account = SkypeAccount( item )
-      elif item['service'] == 'Twitter':
-        account = TwitterAccount( item )
-
-      account.login()
-
     return True
 
-  def login( self, account ):
-    account.login()
+  def configure_logging( self ):
+    logger = logging.getLogger()
+
+    logger.setLevel( logging.DEBUG )
+
+    self.logger = logger
+
     return
 
-  def authorize( self ):
-    pass
+  def get_accounts( self ):
+    return self.accounts
+
+  def get_config( self ):
+    return self.config
+
+  def get_logger( self ):
+    return self.logger
