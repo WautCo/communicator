@@ -82,7 +82,15 @@ class Conversation( wx.Frame ):
     msg_box.Bind( wx.EVT_TEXT_ENTER, self.on_enter, msg_box )
     send_button.Bind( wx.EVT_BUTTON, self.on_enter, send_button )
 
-    self.load_conversation_history()
+    return
+
+  def configure_data( self, data ):
+    channel   = data.get( 'channel', None )
+
+    if channel is None:
+      channel = data.get( 'id', None )
+
+    self.load_conversation_history( channel )
 
     return
 
@@ -90,10 +98,15 @@ class Conversation( wx.Frame ):
     self.recipients.append( buddy )
     return
 
-  def load_conversation_history( self ):
-    convo_view = self.convo_view
-    buddy      = self.recipients[0]
-    client     = buddy.get_account().get_client()
+  def load_conversation_history( self, channel ):
+    text_box = self.convo_view
+    buddy    = self.recipients[0]
+    account  = buddy.get_account()
+    client   = account.get_client()
+    info     = client.get_conversation_info( channel= channel )
+    messages = client.get_conversation_history( channel=channel )
+
+    for message in messages:
 
     return
 
@@ -192,12 +205,12 @@ class BuddyList( wx.Frame ):
 
     return
 
-  def create_conversation( self, buddy ):
-    name  = buddy.get_name()
+  def create_conversation( self, object ):
+    name  = object['name']
     title = f"{name}"
     convo = Conversation( self, title )
 
-    convo.add_recipient( buddy )
+    convo.configure_data( object )
 
     return convo
 
@@ -220,9 +233,15 @@ class BuddyList( wx.Frame ):
     if service == 'Slack':
       team     = client.get_team_name()
       group    = Group( { 'name': team } )
+      convos   = client.get_conversations()
       members  = client.get_team_members()
 
       group_id = tree.AppendItem( root, team, -1, -1, group )
+
+      for convo in convos:
+        name = convo['name']
+
+        tree.AppendItem( group_id, name, -1, -1, convo )
 
       for member in members:
         name = member['name']

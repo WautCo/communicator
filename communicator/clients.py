@@ -41,6 +41,51 @@ class SlackClient( Client ):
 
     return users
 
+  def get_conversations( self ):
+    convos   = None
+    response = self.web_client.conversations_list()
+    
+    if response['ok']:
+      convos = response.get( 'channels', [] )
+
+    return convos
+
+  def get_channels( self ):
+    channels   = None
+    response   = self.web_client.channels_list()
+
+    if response['ok']:
+      channels = response.get( 'channels', [] )
+
+    return channels
+
+  def get_user_conversations( self, user=None ):
+    convos = None
+    response = self.web_client.users_conversations( user=user )
+
+    if response['ok']:
+      convos = response['channels']
+
+    return convos
+
+  def get_conversation_info( self, channel=None ):
+    info = None
+    response = self.web_client.conversations_info( channel=channel )
+
+    if response['ok']:
+      info = response
+
+    return info
+
+  def get_conversation_history( self, channel=None ):
+    history   = None
+    response  = self.web_client.conversations_history( channel=channel )
+
+    if response['ok']:
+      history = response
+
+    return history
+
 
 class FacebookClient( Client ):
   def __init__( self ):

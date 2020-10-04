@@ -1,0 +1,38 @@
+{
+  'id': 'C1DQWFW9J',
+  'name': 'general',
+  'is_channel': True,
+  'is_group': False,
+  'is_im': False,
+  'created': 1464918094,
+  'is_archived': False,
+  'is_general': True,
+  'unlinked': 0,
+  'name_normalized': 'general',
+  'is_shared': False,
+  'parent_conversation': None,
+'creator': 'U1DPSJGR1',
+  'is_ext_shared': False,
+  'is_org_shared': False,
+  'shared_team_ids': [
+    'T1DRC3C8Z'
+  ],
+  'pending_shared': [],
+  'pending_connected_team_ids': [],
+  'is_pending_ext_shared': False,
+  'is_member': True,
+  'is_private': False,
+  'is_mpim': False,
+  'topic': {
+    'value': 'Company-wide announcements and work-based matters',
+    'creator': '',
+    'last_set': 0
+  },
+  'purpose': {
+    'value': 'This channel is for team-wide communication and announcements. All team members are in this channel.',
+    'creator': '',
+    'last_set': 0
+  },
+  'previous_names': [],
+  'num_members': 4
+}
